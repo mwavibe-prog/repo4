@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Garden Keepers — TV</title>
+  <link rel="stylesheet" href="/styles/base.css">
+  <link rel="stylesheet" href="/styles/tv.css">
+  <link rel="stylesheet" href="/styles/lobby.css">
+</head>
+<body>
+  <!-- TV Lobby -->
+  <div class="tv-lobby" id="tv-lobby">
+    <h1 class="tv-lobby-title">Garden Keepers</h1>
+    <p class="tv-lobby-subtitle">Waiting for players to join...</p>
+
+    <div class="tv-lobby-info">
+      <h3>Players, open this on your phone:</h3>
+      <div class="tv-lobby-url" id="join-url"></div>
+    </div>
+
+    <div class="tv-lobby-players" id="lobby-players"></div>
+
+    <div style="margin-top: 30px;">
+      <button class="btn btn-primary" id="btn-start-game" disabled>Start Game</button>
+      <p id="start-hint" style="margin-top: 10px; color: var(--text-light); font-size: 0.9rem;">Need at least 2 players</p>
+    </div>
+  </div>
+
+  <!-- TV Game Screen -->
+  <div class="tv-screen" id="tv-game" style="display: none;">
+    <div class="tv-header">
+      <h1 class="tv-title">Garden Keepers</h1>
+      <div class="tv-stats">
+        <div class="stat-box">
+          <div class="stat-label">Round</div>
+          <div class="stat-value" id="stat-round">1/5</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Score</div>
+          <div class="stat-value" id="stat-score">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Time</div>
+          <div class="stat-value" id="stat-timer">3:00</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tv-health">
+      <div class="health-label">
+        <span>Garden Health</span>
+        <span id="health-pct">100%</span>
+      </div>
+      <div class="health-bar">
+        <div class="health-bar-fill health-high" id="health-fill" style="width: 100%"></div>
+      </div>
+    </div>
+
+    <div class="tv-problem" id="problem-banner" style="display: none;">
+      <div class="problem-text" id="problem-text"></div>
+      <div class="problem-hint" id="problem-hint"></div>
+    </div>
+
+    <div class="garden-grid" id="garden-grid"></div>
+
+    <div class="tv-action-log">
+      <div class="action-log-title">Action Log</div>
+      <div id="action-log"></div>
+    </div>
+  </div>
+
+  <!-- Between Rounds -->
+  <div class="tv-between-rounds" id="tv-between" style="display: none;">
+    <h2 class="between-title" id="between-title">Round Complete!</h2>
+    <p class="between-subtitle" id="between-subtitle">Get ready for the next round...</p>
+    <div class="tv-stats" style="margin-bottom: 30px;">
+      <div class="stat-box">
+        <div class="stat-label">Score</div>
+        <div class="stat-value" id="between-score">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Health</div>
+        <div class="stat-value" id="between-health">100%</div>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="btn-next-round">Next Round</button>
+  </div>
+
+  <!-- End Screen -->
+  <div id="tv-end" style="display: none;">
+    <div class="tv-between-rounds">
+      <h2 class="between-title" id="end-title">Game Over</h2>
+      <p class="between-subtitle" id="end-subtitle"></p>
+      <div class="tv-stats" style="margin-bottom: 30px;">
+        <div class="stat-box">
+          <div class="stat-label">Final Score</div>
+          <div class="stat-value" id="end-score">0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Health</div>
+          <div class="stat-value" id="end-health">0%</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Tier</div>
+          <div class="stat-value" id="end-tier">Seedling</div>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="btn-play-again">Play Again</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module">
+    import { ROLES } from '/src/data/roles.js';
+    import { CONFIG } from '/src/data/constants.js';
+
+    const views = {
+      lobby: document.getElementById('tv-lobby'),
+      game: document.getElementById('tv-game'),
+      between: document.getElementById('tv-between'),
+      end: document.getElementById('tv-end'),
+    };
+
+    let ws;
+    let state = {};
+    let hintTimeout = null;
+
+    function showView(name) {
+      for (const [k, el] of Object.entries(views)) {
+        el.style.display = k === name ? '' : 'none';
+      }
+    }
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function showToast(msg, type = 'info') {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = `toast ${type} show`;
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    // --- Lobby ---
+    function renderLobby(takenRoles) {
+      document.getElementById('join-url').textContent = location.origin;
+      const container = document.getElementById('lobby-players');
+      container.innerHTML = '';
+
+      for (const [key, role] of Object.entries(ROLES)) {
+        const taken = (takenRoles || []).includes(key);
+        const div = document.createElement('div');
+        div.className = `tv-lobby-player ${taken ? '' : 'empty'}`;
+        div.innerHTML = `
+          <div class="player-icon">${role.icon}</div>
+          <div class="player-name">${role.name}</div>
+        `;
+        container.appendChild(div);
+      }
+
+      const count = (takenRoles || []).length;
+      const btn = document.getElementById('btn-start-game');
+      const hint = document.getElementById('start-hint');
+      btn.disabled = count < 2;
+      hint.textContent = count < 2 ? `Need at least 2 players (${count} joined)` : `${count} players ready!`;
+    }
+
+    // --- Garden ---
+    function renderGarden(plots) {
+      const grid = document.getElementById('garden-grid');
+      grid.innerHTML = '';
+      const plantNames = ['Roses', 'Herbs', 'Tomatoes', 'Sunflowers', 'Carrots', 'Orchids'];
+
+      (plots || []).forEach((plot, i) => {
+        const div = document.createElement('div');
+        div.className = `garden-plot ${plot.healthy ? 'healthy' : 'withered'}`;
+        div.innerHTML = `
+          <div class="plot-plant">${plot.plant}</div>
+          <div class="plot-label">${plantNames[i] || `Plot ${i + 1}`}</div>
+        `;
+        grid.appendChild(div);
+      });
+    }
+
+    function updateStats(s) {
+      document.getElementById('stat-round').textContent = `${s.round || 1}/${CONFIG.ROUNDS_TOTAL}`;
+      document.getElementById('stat-score').textContent = s.score || 0;
+      document.getElementById('health-pct').textContent = `${s.health || 0}%`;
+
+      const fill = document.getElementById('health-fill');
+      fill.style.width = `${s.health || 0}%`;
+      fill.className = 'health-bar-fill ' + (s.health > 60 ? 'health-high' : s.health > 30 ? 'health-mid' : 'health-low');
+    }
+
+    function updateTimer(sec) {
+      const el = document.getElementById('stat-timer');
+      el.textContent = formatTime(sec);
+      el.className = sec <= 30 ? 'stat-value timer-warning' : 'stat-value';
+    }
+
+    function showProblem(problem) {
+      const banner = document.getElementById('problem-banner');
+      banner.style.display = '';
+      document.getElementById('problem-text').textContent = problem.problem;
+
+      const hintEl = document.getElementById('problem-hint');
+      hintEl.textContent = '';
+      hintEl.classList.remove('visible');
+
+      // Show hint after 90 seconds
+      clearTimeout(hintTimeout);
+      hintTimeout = setTimeout(() => {
+        hintEl.textContent = `Hint: ${problem.hint}`;
+        hintEl.classList.add('visible');
+      }, 90000);
+    }
+
+    function addActionLog(action) {
+      const log = document.getElementById('action-log');
+      const entry = document.createElement('div');
+      entry.className = `action-entry ${action.correct ? 'correct' : 'wrong'} animate-fade-in`;
+      entry.innerHTML = `
+        <span class="action-icon">${action.correct ? '✅' : '❌'}</span>
+        <span>${action.action.label} (${action.action.role})</span>
+      `;
+      log.prepend(entry);
+    }
+
+    // --- WebSocket ---
+    function connect() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}`);
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'JOIN_TV' }));
+      };
+
+      ws.onclose = () => {
+        setTimeout(connect, 2000);
+      };
+
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+
+        switch (msg.type) {
+          case 'STATE_SYNC':
+            state = msg.payload;
+            handleStateSync(state);
+            break;
+
+          case 'ROLES_UPDATE':
+            renderLobby(msg.payload.takenRoles);
+            break;
+
+          case 'TIMER':
+            updateTimer(msg.payload.timerSec);
+            break;
+
+          case 'ACTION_RESULT':
+            addActionLog(msg.payload);
+            updateStats({ ...state, health: msg.payload.health, score: msg.payload.score });
+            state.health = msg.payload.health;
+            state.score = msg.payload.score;
+
+            // Flash garden on correct/wrong
+            if (msg.payload.correct) {
+              renderGarden(state.plots);
+            } else {
+              // Re-render to show withered plot
+              renderGarden(state.plots);
+            }
+            break;
+
+          case 'ROUND_END':
+            clearTimeout(hintTimeout);
+            document.getElementById('problem-banner').style.display = 'none';
+            if (msg.payload.timeout) {
+              showToast('Time\'s up!', 'error');
+            }
+            // Show between rounds
+            document.getElementById('between-score').textContent = state.score;
+            document.getElementById('between-health').textContent = `${msg.payload.health}%`;
+            if (msg.payload.success) {
+              document.getElementById('between-title').textContent = 'Round Complete!';
+              document.getElementById('between-subtitle').textContent = 'Great teamwork! Get ready for the next challenge.';
+            } else {
+              document.getElementById('between-title').textContent = 'Time Ran Out!';
+              document.getElementById('between-subtitle').textContent = 'The garden suffered. Communicate better next round!';
+            }
+            showView('between');
+            break;
+
+          case 'GAME_END':
+            clearTimeout(hintTimeout);
+            document.getElementById('end-title').textContent = msg.payload.won ? 'Garden Saved!' : 'Garden Lost!';
+            document.getElementById('end-subtitle').textContent = msg.payload.won
+              ? 'Your team kept the garden alive! Amazing cooperation!'
+              : 'The garden couldn\'t survive. Try again with better teamwork!';
+            document.getElementById('end-score').textContent = msg.payload.score;
+            document.getElementById('end-health').textContent = `${msg.payload.health}%`;
+            document.getElementById('end-tier').textContent = msg.payload.tier;
+            showView('end');
+            break;
+
+          case 'PLAYER_COUNT':
+            break;
+
+          case 'WELCOME':
+            renderLobby(msg.payload.takenRoles);
+            break;
+        }
+      };
+    }
+
+    function handleStateSync(s) {
+      renderLobby(s.takenRoles);
+
+      if (s.phase === 'lobby') {
+        showView('lobby');
+      } else if (s.phase === 'playing') {
+        showView('game');
+        updateStats(s);
+        updateTimer(s.timerSec);
+        renderGarden(s.plots);
+        if (s.currentProblem) showProblem(s.currentProblem);
+        document.getElementById('action-log').innerHTML = '';
+      } else if (s.phase === 'between_rounds') {
+        document.getElementById('between-score').textContent = s.score;
+        document.getElementById('between-health').textContent = `${s.health}%`;
+        showView('between');
+      } else if (s.phase === 'ended') {
+        showView('end');
+      }
+    }
+
+    // --- Buttons ---
+    document.getElementById('btn-start-game').addEventListener('click', () => {
+      ws.send(JSON.stringify({ type: 'START_GAME' }));
+    });
+
+    document.getElementById('btn-next-round').addEventListener('click', () => {
+      ws.send(JSON.stringify({ type: 'NEXT_ROUND' }));
+    });
+
+    document.getElementById('btn-play-again').addEventListener('click', () => {
+      ws.send(JSON.stringify({ type: 'RESET_GAME' }));
+    });
+
+    connect();
+  </script>
+</body>
+</html>

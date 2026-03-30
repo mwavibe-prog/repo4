@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Garden Keepers</title>
+  <link rel="stylesheet" href="/styles/base.css">
+  <link rel="stylesheet" href="/styles/lobby.css">
+</head>
+<body>
+  <div class="lobby-screen" id="lobby">
+    <h1 class="lobby-title">Garden Keepers</h1>
+    <p class="lobby-subtitle">A cooperative garden game for 2-4 players</p>
+
+    <div class="lobby-options" id="role-cards"></div>
+
+    <div class="lobby-actions">
+      <button class="btn btn-primary" id="btn-join-phone" disabled>Join as Player</button>
+      <a href="/tv.html" class="btn btn-secondary">Open TV Screen</a>
+    </div>
+
+    <div class="connection-status" id="connection-status">
+      <span class="dot disconnected" id="status-dot"></span>
+      <span id="status-text">Connecting...</span>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module">
+    import { ROLES } from '/src/data/roles.js';
+
+    const roleCards = document.getElementById('role-cards');
+    const btnJoin = document.getElementById('btn-join-phone');
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const toastEl = document.getElementById('toast');
+
+    let ws;
+    let selectedRole = null;
+    let takenRoles = [];
+
+    function showToast(msg, type = 'info') {
+      toastEl.textContent = msg;
+      toastEl.className = `toast ${type} show`;
+      setTimeout(() => { toastEl.classList.remove('show'); }, 3000);
+    }
+
+    function renderRoles() {
+      roleCards.innerHTML = '';
+      for (const [key, role] of Object.entries(ROLES)) {
+        const taken = takenRoles.includes(key);
+        const selected = selectedRole === key;
+        const card = document.createElement('div');
+        card.className = `lobby-card${selected ? ' selected' : ''}${taken && !selected ? ' taken' : ''}`;
+        card.innerHTML = `
+          <div class="card-icon">${role.icon}</div>
+          <div class="card-title">${role.name}</div>
+          <div class="card-badge ${taken ? 'badge-taken' : ''}">${taken ? (selected ? 'Selected' : 'Taken') : 'Available'}</div>
+        `;
+        if (!taken || selected) {
+          card.addEventListener('click', () => selectRole(key));
+        }
+        roleCards.appendChild(card);
+      }
+    }
+
+    function selectRole(role) {
+      if (takenRoles.includes(role) && selectedRole !== role) return;
+      selectedRole = role;
+      ws.send(JSON.stringify({ type: 'SELECT_ROLE', payload: { role } }));
+      btnJoin.disabled = false;
+      renderRoles();
+    }
+
+    function connect() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}`);
+
+      ws.onopen = () => {
+        statusDot.className = 'dot connected';
+        statusText.textContent = 'Connected';
+      };
+
+      ws.onclose = () => {
+        statusDot.className = 'dot disconnected';
+        statusText.textContent = 'Disconnected — reconnecting...';
+        setTimeout(connect, 2000);
+      };
+
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+
+        switch (msg.type) {
+          case 'ROLES_UPDATE':
+            takenRoles = msg.payload.takenRoles;
+            renderRoles();
+            break;
+
+          case 'STATE_SYNC':
+            takenRoles = msg.payload.takenRoles || [];
+            renderRoles();
+            // If game already started, redirect to phone
+            if (msg.payload.phase === 'playing' || msg.payload.phase === 'between_rounds') {
+              if (selectedRole) {
+                window.location.href = `/phone.html?role=${selectedRole}`;
+              }
+            }
+            break;
+
+          case 'WELCOME':
+            takenRoles = msg.payload.takenRoles || [];
+            renderRoles();
+            break;
+
+          case 'ERROR':
+            showToast(msg.payload.message, 'error');
+            break;
+
+          case 'ROUND_START':
+          case 'GAME_START':
+            if (selectedRole) {
+              window.location.href = `/phone.html?role=${selectedRole}`;
+            }
+            break;
+        }
+      };
+    }
+
+    btnJoin.addEventListener('click', () => {
+      if (!selectedRole) {
+        showToast('Please select a role first', 'error');
+        return;
+      }
+      window.location.href = `/phone.html?role=${selectedRole}`;
+    });
+
+    renderRoles();
+    connect();
+  </script>
+</body>
+</html>

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Garden Keepers — Player</title>
+  <link rel="stylesheet" href="/styles/base.css">
+  <link rel="stylesheet" href="/styles/phone.css">
+</head>
+<body>
+  <div id="phone-app"></div>
+  <div id="toast" class="toast"></div>
+
+  <script type="module">
+    import { ROLES, ACTIONS } from '/src/data/roles.js';
+    import { CONFIG } from '/src/data/constants.js';
+
+    const app = document.getElementById('phone-app');
+    const toastEl = document.getElementById('toast');
+    const params = new URLSearchParams(location.search);
+    const roleId = params.get('role');
+    const role = ROLES[roleId];
+    const actions = ACTIONS[roleId];
+
+    if (!role || !actions) {
+      app.innerHTML = '<div class="phone-waiting"><h2>Invalid Role</h2><p><a href="/">Go back to lobby</a></p></div>';
+      throw new Error('Invalid role');
+    }
+
+    let ws;
+    let currentClue = '';
+    let timerSec = CONFIG.ROUND_DURATION_SEC;
+    let cooldownActive = false;
+    let gamePhase = 'lobby';
+    let score = 0;
+    let health = 100;
+
+    function showToast(msg, type = 'info') {
+      toastEl.textContent = msg;
+      toastEl.className = `toast ${type} show`;
+      setTimeout(() => toastEl.classList.remove('show'), 3000);
+    }
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function render() {
+      app.className = `phone-screen ${role.theme}`;
+
+      if (gamePhase === 'lobby') {
+        app.innerHTML = `
+          <div class="phone-header">
+            <div class="phone-role-icon">${role.icon}</div>
+            <div class="phone-role-name">${role.name}</div>
+          </div>
+          <div class="phone-waiting">
+            <h2>Waiting for game to start...</h2>
+            <p>The host will start the game from the TV screen.</p>
+          </div>
+        `;
+        return;
+      }
+
+      if (gamePhase === 'between_rounds') {
+        app.innerHTML = `
+          <div class="phone-header">
+            <div class="phone-role-icon">${role.icon}</div>
+            <div class="phone-role-name">${role.name}</div>
+          </div>
+          <div class="phone-waiting">
+            <h2>Round Complete!</h2>
+            <p>Waiting for the next round...</p>
+          </div>
+          <div class="phone-score-bar">
+            <span>Score: ${score}</span>
+            <span>Health: ${health}%</span>
+          </div>
+        `;
+        return;
+      }
+
+      if (gamePhase === 'ended') {
+        app.innerHTML = `
+          <div class="phone-header">
+            <div class="phone-role-icon">${role.icon}</div>
+            <div class="phone-role-name">${role.name}</div>
+          </div>
+          <div class="phone-waiting">
+            <h2>Game Over!</h2>
+            <p>Final Score: ${score}</p>
+            <p style="margin-top: 16px;"><a href="/" style="color: var(--role-color); font-weight: 700;">Back to Lobby</a></p>
+          </div>
+        `;
+        return;
+      }
+
+      // Playing state
+      app.innerHTML = `
+        <div class="phone-header">
+          <div class="phone-role-icon">${role.icon}</div>
+          <div class="phone-role-name">${role.name}</div>
+          <div class="phone-round-info">Round ${currentRound}/${CONFIG.ROUNDS_TOTAL}</div>
+        </div>
+
+        <div class="phone-score-bar">
+          <span>Score: ${score}</span>
+          <span>Health: ${health}%</span>
+        </div>
+
+        <div class="phone-clue">
+          <div class="clue-label">Your Clue</div>
+          <div class="clue-text">${currentClue || 'Waiting for clue...'}</div>
+        </div>
+
+        <div class="phone-actions" id="action-buttons"></div>
+
+        <div class="phone-timer">
+          <div class="phone-timer-value ${timerSec <= 30 ? 'warning' : ''}" id="phone-timer">${formatTime(timerSec)}</div>
+        </div>
+      `;
+
+      renderActionButtons();
+    }
+
+    let currentRound = 1;
+
+    function renderActionButtons() {
+      const container = document.getElementById('action-buttons');
+      if (!container) return;
+
+      container.innerHTML = '';
+      actions.forEach((action) => {
+        const btn = document.createElement('button');
+        btn.className = `action-btn${cooldownActive ? ' on-cooldown' : ''}`;
+        btn.disabled = cooldownActive;
+        btn.style.setProperty('--cooldown-duration', `${CONFIG.ACTION_COOLDOWN_SEC}s`);
+        btn.innerHTML = `
+          <span class="action-icon">${action.icon}</span>
+          <div class="action-info">
+            <div class="action-title">${action.title}</div>
+            <div class="action-sub">${action.sub}</div>
+          </div>
+        `;
+        btn.addEventListener('click', () => doAction(action));
+        container.appendChild(btn);
+      });
+    }
+
+    function doAction(action) {
+      if (cooldownActive) {
+        showToast('On cooldown! Wait a moment.', 'info');
+        return;
+      }
+      if (gamePhase !== 'playing') {
+        showToast('No active round!', 'error');
+        return;
+      }
+
+      ws.send(JSON.stringify({
+        type: 'ACTION',
+        payload: { effect: action.effect, label: action.title },
+      }));
+
+      // Start cooldown
+      cooldownActive = true;
+      renderActionButtons();
+
+      setTimeout(() => {
+        cooldownActive = false;
+        if (gamePhase === 'playing') renderActionButtons();
+      }, CONFIG.ACTION_COOLDOWN_SEC * 1000);
+    }
+
+    // --- WebSocket ---
+    function connect() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}`);
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'SELECT_ROLE', payload: { role: roleId } }));
+      };
+
+      ws.onclose = () => {
+        setTimeout(connect, 2000);
+      };
+
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+
+        switch (msg.type) {
+          case 'STATE_SYNC':
+            gamePhase = msg.payload.phase;
+            score = msg.payload.score || 0;
+            health = msg.payload.health || 100;
+            currentRound = msg.payload.round || 1;
+            timerSec = msg.payload.timerSec || CONFIG.ROUND_DURATION_SEC;
+            render();
+            break;
+
+          case 'CLUE':
+            currentClue = msg.payload.clue;
+            const clueEl = document.querySelector('.clue-text');
+            if (clueEl) {
+              clueEl.textContent = currentClue;
+              clueEl.classList.add('animate-fade-in');
+            }
+            break;
+
+          case 'TIMER':
+            timerSec = msg.payload.timerSec;
+            const timerEl = document.getElementById('phone-timer');
+            if (timerEl) {
+              timerEl.textContent = formatTime(timerSec);
+              timerEl.className = `phone-timer-value ${timerSec <= 30 ? 'warning' : ''}`;
+            }
+            break;
+
+          case 'ACTION_RESULT':
+            score = msg.payload.score;
+            health = msg.payload.health;
+            if (msg.payload.correct) {
+              showToast('Correct action!', 'success');
+              if (navigator.vibrate) navigator.vibrate(200);
+            } else {
+              showToast('Wrong action! The garden suffered.', 'error');
+              if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+            }
+            // Update score bar
+            const scoreBar = document.querySelector('.phone-score-bar');
+            if (scoreBar) {
+              scoreBar.innerHTML = `<span>Score: ${score}</span><span>Health: ${health}%</span>`;
+            }
+            break;
+
+          case 'ROUND_END':
+            gamePhase = 'between_rounds';
+            cooldownActive = false;
+            health = msg.payload.health;
+            score = msg.payload.score || score;
+            render();
+            break;
+
+          case 'GAME_END':
+            gamePhase = 'ended';
+            score = msg.payload.score;
+            health = msg.payload.health;
+            render();
+            break;
+
+          case 'ERROR':
+            showToast(msg.payload.message, 'error');
+            break;
+        }
+      };
+    }
+
+    render();
+    connect();
+  </script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "garden-keepers",
+  "version": "1.0.0",
+  "description": "Real-time asymmetric cooperative garden game for 2-4 players",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.16.0"
+  }
+}
