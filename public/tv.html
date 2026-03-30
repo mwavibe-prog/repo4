@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/styles/base.css">
   <link rel="stylesheet" href="/styles/tv.css">
   <link rel="stylesheet" href="/styles/lobby.css">
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 </head>
 <body>
   <!-- TV Lobby -->
@@ -15,7 +16,8 @@
     <p class="tv-lobby-subtitle">Waiting for players to join...</p>
 
     <div class="tv-lobby-info">
-      <h3>Players, open this on your phone:</h3>
+      <h3>Scan to join the game:</h3>
+      <canvas id="qr-code" style="margin: 16px auto; display: block;"></canvas>
       <div class="tv-lobby-url" id="join-url"></div>
     </div>
 
@@ -147,9 +149,26 @@
       setTimeout(() => t.classList.remove('show'), 3000);
     }
 
+    // --- QR Code ---
+    let qrRendered = false;
+    function renderQRCode() {
+      if (qrRendered) return;
+      const canvas = document.getElementById('qr-code');
+      if (!canvas) return;
+      const joinUrl = location.origin;
+      QRCode.toCanvas(canvas, joinUrl, {
+        width: 200,
+        margin: 2,
+        color: { dark: '#2d5016', light: '#ffffff' },
+      }, (err) => {
+        if (!err) qrRendered = true;
+      });
+    }
+
     // --- Lobby ---
     function renderLobby(takenRoles) {
       document.getElementById('join-url').textContent = location.origin;
+      renderQRCode();
       const container = document.getElementById('lobby-players');
       container.innerHTML = '';
 
