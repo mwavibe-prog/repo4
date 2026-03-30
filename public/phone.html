@@ -34,6 +34,7 @@
     let gamePhase = 'lobby';
     let score = 0;
     let health = 100;
+    let difficulty = 'normal';
 
     function showToast(msg, type = 'info') {
       toastEl.textContent = msg;
@@ -102,7 +103,7 @@
         <div class="phone-header">
           <div class="phone-role-icon">${role.icon}</div>
           <div class="phone-role-name">${role.name}</div>
-          <div class="phone-round-info">Round ${currentRound}/${CONFIG.ROUNDS_TOTAL}</div>
+          <div class="phone-round-info">Round ${currentRound} ${difficulty !== 'normal' ? '(' + difficulty.toUpperCase() + ')' : ''}</div>
         </div>
 
         <div class="phone-score-bar">
@@ -197,6 +198,7 @@
             health = msg.payload.health || 100;
             currentRound = msg.payload.round || 1;
             timerSec = msg.payload.timerSec || CONFIG.ROUND_DURATION_SEC;
+            difficulty = msg.payload.difficulty || 'normal';
             render();
             break;
 
@@ -222,7 +224,11 @@
             score = msg.payload.score;
             health = msg.payload.health;
             if (msg.payload.correct) {
-              showToast('Correct action!', 'success');
+              if (msg.payload.partial) {
+                showToast(`Partial fix! ${msg.payload.solvedCount}/${msg.payload.totalNeeded} — keep going!`, 'info');
+              } else {
+                showToast('Correct action!', 'success');
+              }
               if (navigator.vibrate) navigator.vibrate(200);
             } else {
               showToast('Wrong action! The garden suffered.', 'error');

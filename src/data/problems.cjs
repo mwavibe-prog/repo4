@@ -133,4 +133,117 @@ const PROBLEM_SETS = [
   },
 ];
 
-module.exports = { PROBLEM_SETS };
+const MULTI_PROBLEM_SETS = [
+  {
+    problem: '\u{1F940}\u{1F525} The garden is parched AND scorching!',
+    solutions: ['water_full', 'sun_shade'],
+    clues: {
+      water: 'The soil is cracked and bone dry \u2014 desperate for water!',
+      sun: 'The UV index is dangerously high! Plants are burning!',
+      seed: 'Leaves are browning at the edges AND stems are drooping badly.',
+      animal: 'All animals fled. It\'s too hot and dry for anyone out here.',
+    },
+    hint: 'Two things are wrong \u2014 the heat AND the thirst.',
+  },
+  {
+    problem: '\u{1F41B}\u{1F30A} Pests are invading the flooded garden!',
+    solutions: ['animal_shoo', 'water_drain'],
+    clues: {
+      water: 'The soil is waterlogged \u2014 puddles are breeding pests!',
+      sun: 'Damp conditions are creating a pest paradise.',
+      seed: 'Roots are rotting AND something is eating the stems.',
+      animal: 'Slugs and rabbits are having a field day in the wet soil!',
+    },
+    hint: 'Fix the flooding AND deal with the critters.',
+  },
+  {
+    problem: '\u{1F311}\u{1F634} Dark skies and exhausted soil!',
+    solutions: ['sun_lamp', 'seed_fertilise'],
+    clues: {
+      water: 'Water is fine \u2014 this problem isn\'t about hydration.',
+      sun: 'A full week of heavy clouds. Plants are starving for light!',
+      seed: 'The soil has no nutrients left AND the stems are stretching weakly.',
+      animal: 'No pest issues. The problems are environmental.',
+    },
+    hint: 'The plants need light AND food.',
+  },
+  {
+    problem: '\u{1F342}\u{1F43F}\uFE0F Overgrown garden attracting pests!',
+    solutions: ['seed_prune', 'animal_trap'],
+    clues: {
+      water: 'Dense undergrowth is trapping moisture and hiding creatures.',
+      sun: 'Thick canopy is blocking light AND providing pest cover.',
+      seed: 'Branches are tangled, and something is nesting deep inside!',
+      animal: 'A family of squirrels has built a home in the overgrowth!',
+    },
+    hint: 'Cut back the jungle AND trap the residents.',
+  },
+  {
+    problem: '\u{1F327}\uFE0F\u{1F331} Delicate seedlings in harsh conditions!',
+    solutions: ['water_mist', 'seed_plant'],
+    clues: {
+      water: 'Young plants need gentle moisture \u2014 heavy rain would destroy them.',
+      sun: 'Conditions are otherwise fine for new growth.',
+      seed: 'Half the plots are bare AND the existing seedlings need tender care.',
+      animal: 'No pests around \u2014 focus on the plants themselves.',
+    },
+    hint: 'Plant new seeds AND gently water the fragile ones.',
+  },
+  {
+    problem: '\u{1F525}\u{1F41B} Scorched earth brings desperate pests!',
+    solutions: ['sun_shade', 'animal_feed'],
+    clues: {
+      water: 'The soil is warm but moist enough. Water isn\'t the issue.',
+      sun: 'Blazing heat is driving animals into the garden for shade!',
+      seed: 'Plants are burned AND chewed \u2014 double damage!',
+      animal: 'Heat-stressed animals are eating everything in sight \u2014 they need redirecting.',
+    },
+    hint: 'Block the harsh sun AND redirect the hungry visitors.',
+  },
+  {
+    problem: '\u{1F940}\u{1F342} Dehydrated overgrowth choking the garden!',
+    solutions: ['water_full', 'seed_prune'],
+    clues: {
+      water: 'The soil under the dense foliage is completely dry.',
+      sun: 'Tangled growth is blocking both light and rain.',
+      seed: 'Overgrown branches are stealing water from the main plants!',
+      animal: 'No pest issues, but the plants are fighting each other for resources.',
+    },
+    hint: 'Trim the excess AND give everything a deep drink.',
+  },
+  {
+    problem: '\u2600\uFE0F\u{1F30A} Too much sun AND too much water!',
+    solutions: ['sun_open', 'water_drain'],
+    clues: {
+      water: 'Irrigation malfunction has flooded the beds!',
+      sun: 'The shade cloth is blocking necessary morning light.',
+      seed: 'Roots are drowning AND leaves aren\'t photosynthesizing properly.',
+      animal: 'Frogs have moved into the puddles. The ecosystem is off balance.',
+    },
+    hint: 'Let the light in AND let the water out.',
+  },
+  {
+    problem: '\u{1FAB9}\u{1F311} New plots in darkness need everything!',
+    solutions: ['seed_plant', 'sun_lamp'],
+    clues: {
+      water: 'Soil is prepped and watered \u2014 ready for planting.',
+      sun: 'But it\'s been cloudy for days. New seeds won\'t sprout without light!',
+      seed: 'Empty plots need seeds, but they also need help growing.',
+      animal: 'Area is secure \u2014 no pest threats.',
+    },
+    hint: 'Fill the empty beds AND give them artificial light.',
+  },
+  {
+    problem: '\u{1F41B}\u{1F940} Pest damage on dehydrated plants!',
+    solutions: ['animal_shoo', 'water_full'],
+    clues: {
+      water: 'Weakened, thirsty plants are more vulnerable to pests!',
+      sun: 'Light conditions are normal. The issue is elsewhere.',
+      seed: 'Chewed leaves on wilting stems \u2014 a double crisis!',
+      animal: 'Rabbits are targeting the weakest, driest plants first.',
+    },
+    hint: 'Chase away the pests AND revive the plants with water.',
+  },
+];
+
+module.exports = { PROBLEM_SETS, MULTI_PROBLEM_SETS };

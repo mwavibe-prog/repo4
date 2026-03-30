@@ -58,6 +58,7 @@
     </div>
 
     <div class="tv-problem" id="problem-banner" style="display: none;">
+      <div id="difficulty-badge" style="display: none; color: white; padding: 4px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: inline-block;"></div>
       <div class="problem-text" id="problem-text"></div>
       <div class="problem-hint" id="problem-hint"></div>
     </div>
@@ -188,7 +189,7 @@
     }
 
     function updateStats(s) {
-      document.getElementById('stat-round').textContent = `${s.round || 1}/${CONFIG.ROUNDS_TOTAL}`;
+      document.getElementById('stat-round').textContent = `Round ${s.round || 1}`;
       document.getElementById('stat-score').textContent = s.score || 0;
       document.getElementById('health-pct').textContent = `${s.health || 0}%`;
 
@@ -203,10 +204,25 @@
       el.className = sec <= 30 ? 'stat-value timer-warning' : 'stat-value';
     }
 
-    function showProblem(problem) {
+    function showProblem(problem, stateData) {
       const banner = document.getElementById('problem-banner');
       banner.style.display = '';
       document.getElementById('problem-text').textContent = problem.problem;
+
+      // Show difficulty + multi-problem indicator
+      const diffEl = document.getElementById('difficulty-badge');
+      if (diffEl) {
+        const diff = stateData.difficulty || 'normal';
+        const labels = { normal: 'Normal', hard: 'Hard', expert: 'Expert' };
+        const colors = { normal: 'var(--green-mid)', hard: 'var(--yellow)', expert: 'var(--red)' };
+        diffEl.textContent = labels[diff] || diff;
+        diffEl.style.background = colors[diff] || colors.normal;
+        diffEl.style.display = '';
+
+        if (stateData.isMultiProblem) {
+          diffEl.textContent += ` \u2014 ${stateData.solutionsNeeded || 2} helpers needed!`;
+        }
+      }
 
       const hintEl = document.getElementById('problem-hint');
       hintEl.textContent = '';
@@ -266,13 +282,11 @@
             updateStats({ ...state, health: msg.payload.health, score: msg.payload.score });
             state.health = msg.payload.health;
             state.score = msg.payload.score;
+            renderGarden(state.plots);
 
-            // Flash garden on correct/wrong
-            if (msg.payload.correct) {
-              renderGarden(state.plots);
-            } else {
-              // Re-render to show withered plot
-              renderGarden(state.plots);
+            // Show partial progress for multi-problems
+            if (msg.payload.correct && msg.payload.partial) {
+              showToast(`Partial fix! ${msg.payload.solvedCount}/${msg.payload.totalNeeded} solved`, 'info');
             }
             break;
 
@@ -327,7 +341,7 @@
         updateStats(s);
         updateTimer(s.timerSec);
         renderGarden(s.plots);
-        if (s.currentProblem) showProblem(s.currentProblem);
+        if (s.currentProblem) showProblem(s.currentProblem, s);
         document.getElementById('action-log').innerHTML = '';
       } else if (s.phase === 'between_rounds') {
         document.getElementById('between-score').textContent = s.score;

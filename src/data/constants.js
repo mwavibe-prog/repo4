@@ -1,5 +1,4 @@
 export const CONFIG = {
-  ROUNDS_TOTAL: 5,
   ROUND_DURATION_SEC: 180,
   ACTION_COOLDOWN_SEC: 8,
   SCORE_CORRECT: 50,
@@ -13,5 +12,16 @@ export const CONFIG = {
     MASTER: 250,
     SKILLED: 150,
     APPRENTICE: 50,
+  },
+  // Difficulty scaling: after round 5, rounds get harder
+  DIFFICULTY: {
+    // Rounds 1-5: normal
+    NORMAL_MAX_ROUND: 5,
+    NORMAL_DURATION: 180,
+    // Rounds 6-10: hard
+    HARD_MAX_ROUND: 10,
+    HARD_DURATION: 150,
+    // Rounds 11+: expert
+    EXPERT_DURATION: 120,
   },
 };
