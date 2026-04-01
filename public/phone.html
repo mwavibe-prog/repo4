@@ -35,6 +35,41 @@
     let score = 0;
     let health = 100;
     let difficulty = 'normal';
+    let endLeaderboard = [];
+    let endTeamName = '';
+
+    function renderLeaderboardHTML(board, highlightTeam) {
+      if (!board || board.length === 0) return '';
+      const rows = board.slice(0, 10).map((entry, i) => {
+        const medal = i === 0 ? '&#x1F947;' : i === 1 ? '&#x1F948;' : i === 2 ? '&#x1F949;' : `${i + 1}.`;
+        const hl = highlightTeam && entry.team === highlightTeam;
+        return `<tr style="${hl ? 'background: var(--yellow-light); font-weight: 800;' : ''}">
+          <td style="padding: 6px 8px; text-align: center; font-size: 0.9rem;">${medal}</td>
+          <td style="padding: 6px 8px; font-weight: 700; font-size: 0.9rem;">${entry.team}</td>
+          <td style="padding: 6px 8px; text-align: center; font-weight: 700; color: var(--green-dark); font-size: 0.9rem;">${entry.score}</td>
+          <td style="padding: 6px 8px; text-align: center; color: var(--text-light); font-size: 0.85rem;">R${entry.rounds}</td>
+        </tr>`;
+      }).join('');
+
+      return `
+        <div style="background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; margin-top: 16px;">
+          <div style="background: var(--role-gradient, linear-gradient(135deg, var(--green-mid), var(--green-dark))); color: white; padding: 10px 16px; font-family: 'Playfair Display', serif; font-size: 1.1rem; font-weight: 800; text-align: center;">
+            Leaderboard
+          </div>
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background: var(--gray-light);">
+                <th style="padding: 6px 8px; font-size: 0.7rem; text-transform: uppercase; color: var(--text-light);">#</th>
+                <th style="padding: 6px 8px; font-size: 0.7rem; text-transform: uppercase; color: var(--text-light); text-align: left;">Team</th>
+                <th style="padding: 6px 8px; font-size: 0.7rem; text-transform: uppercase; color: var(--text-light);">Score</th>
+                <th style="padding: 6px 8px; font-size: 0.7rem; text-transform: uppercase; color: var(--text-light);">Rnd</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    }
 
     function showToast(msg, type = 'info') {
       toastEl.textContent = msg;
@@ -91,8 +126,11 @@
           </div>
           <div class="phone-waiting">
             <h2>Game Over!</h2>
-            <p>Final Score: ${score}</p>
-            <p style="margin-top: 16px;"><a href="/" style="color: var(--role-color); font-weight: 700;">Back to Lobby</a></p>
+            <p>${endTeamName ? endTeamName + ' — ' : ''}Final Score: ${score}</p>
+          </div>
+          ${renderLeaderboardHTML(endLeaderboard, endTeamName)}
+          <div style="text-align: center; margin-top: 16px;">
+            <a href="/" style="color: var(--role-color); font-weight: 700; font-size: 1.1rem;">Back to Lobby</a>
           </div>
         `;
         return;
@@ -253,6 +291,8 @@
             gamePhase = 'ended';
             score = msg.payload.score;
             health = msg.payload.health;
+            endLeaderboard = msg.payload.leaderboard || [];
+            endTeamName = msg.payload.teamName || '';
             render();
             break;
 

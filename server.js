@@ -2,14 +2,53 @@ const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/src', express.static(path.join(__dirname, 'src')));
 app.use('/styles', express.static(path.join(__dirname, 'styles')));
+
+// --- Leaderboard ---
+
+const LEADERBOARD_FILE = path.join(__dirname, 'leaderboard.json');
+const MAX_LEADERBOARD_ENTRIES = 20;
+
+function loadLeaderboard() {
+  try {
+    if (fs.existsSync(LEADERBOARD_FILE)) {
+      return JSON.parse(fs.readFileSync(LEADERBOARD_FILE, 'utf8'));
+    }
+  } catch { /* ignore */ }
+  return [];
+}
+
+function saveLeaderboard(board) {
+  fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(board, null, 2));
+}
+
+function addLeaderboardEntry(teamName, score, rounds, tier) {
+  const board = loadLeaderboard();
+  board.push({
+    team: teamName,
+    score,
+    rounds,
+    tier,
+    date: new Date().toISOString(),
+  });
+  board.sort((a, b) => b.score - a.score);
+  const trimmed = board.slice(0, MAX_LEADERBOARD_ENTRIES);
+  saveLeaderboard(trimmed);
+  return trimmed;
+}
+
+app.get('/api/leaderboard', (_req, res) => {
+  res.json(loadLeaderboard());
+});
 
 // --- Game State ---
 
@@ -24,6 +63,7 @@ let shuffledProblems = [];
 let shuffledMultiProblems = [];
 let singleProblemIndex = 0;
 let multiProblemIndex = 0;
+let teamName = '';
 
 function createFreshState() {
   return {
@@ -315,6 +355,10 @@ function endGame() {
   else if (gameState.score >= CONFIG.SCORE_TIERS.SKILLED) tier = 'Skilled Keeper';
   else if (gameState.score >= CONFIG.SCORE_TIERS.APPRENTICE) tier = 'Apprentice';
 
+  // Save to leaderboard
+  const name = teamName || 'Anonymous';
+  const leaderboard = addLeaderboardEntry(name, gameState.score, gameState.round, tier);
+
   broadcast({
     type: 'GAME_END',
     payload: {
@@ -323,6 +367,8 @@ function endGame() {
       health: gameState.health,
       round: gameState.round,
       tier,
+      teamName: name,
+      leaderboard,
     },
   });
 }
@@ -331,11 +377,13 @@ function resetGame() {
   clearInterval(timerInterval);
   timerInterval = null;
   gameState = createFreshState();
+  teamName = '';
   takenRoles.clear();
   for (const [, player] of players) {
     player.role = null;
   }
   broadcastState();
+  broadcast({ type: 'LEADERBOARD', payload: { leaderboard: loadLeaderboard() } });
 }
 
 // --- WebSocket Handling ---
@@ -351,6 +399,8 @@ wss.on('connection', (ws) => {
       playerId,
       takenRoles: Array.from(takenRoles),
       phase: gameState.phase,
+      teamName,
+      leaderboard: loadLeaderboard(),
     },
   });
   sendTo(ws, {
@@ -404,12 +454,22 @@ wss.on('connection', (ws) => {
         break;
       }
 
+      case 'SET_TEAM_NAME': {
+        teamName = (msg.payload.name || '').trim().substring(0, 30) || 'Anonymous';
+        broadcast({
+          type: 'TEAM_NAME',
+          payload: { teamName },
+        });
+        break;
+      }
+
       case 'START_GAME': {
         if (gameState.phase !== 'lobby') return;
         if (takenRoles.size < 2) {
           sendTo(ws, { type: 'ERROR', payload: { message: 'Need at least 2 players' } });
           return;
         }
+        if (!teamName) teamName = 'Anonymous';
         startGame();
         break;
       }
