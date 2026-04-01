@@ -17,8 +17,8 @@
 
     <div class="tv-lobby-info">
       <h3>Scan to join the game:</h3>
-      <canvas id="qr-code" style="margin: 16px auto; display: block;"></canvas>
-      <div class="tv-lobby-url" id="join-url"></div>
+      <canvas id="qr-code" style="margin: 20px auto; display: block; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);"></canvas>
+      <div class="tv-lobby-url" id="join-url" style="font-size: 1rem; color: var(--text-light); margin-top: 8px;"></div>
     </div>
 
     <div style="margin: 20px 0;">
@@ -208,13 +208,25 @@
       const canvas = document.getElementById('qr-code');
       if (!canvas) return;
       const joinUrl = location.origin;
-      QRCode.toCanvas(canvas, joinUrl, {
-        width: 200,
-        margin: 2,
-        color: { dark: '#2d5016', light: '#ffffff' },
-      }, (err) => {
-        if (!err) qrRendered = true;
-      });
+
+      if (typeof QRCode !== 'undefined' && QRCode.toCanvas) {
+        QRCode.toCanvas(canvas, joinUrl, {
+          width: 250,
+          margin: 3,
+          color: { dark: '#2d5016', light: '#ffffff' },
+        }, (err) => {
+          if (!err) qrRendered = true;
+        });
+      } else {
+        // Fallback: use Google Charts QR API rendered in an img
+        canvas.style.display = 'none';
+        const img = document.createElement('img');
+        img.src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(joinUrl)}&color=2d5016`;
+        img.alt = 'QR Code to join game';
+        img.style.cssText = 'width: 250px; height: 250px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin: 20px auto; display: block;';
+        canvas.parentNode.insertBefore(img, canvas);
+        qrRendered = true;
+      }
     }
 
     // --- Lobby ---
